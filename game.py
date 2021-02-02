@@ -17,6 +17,7 @@ COIN_AMOUNT = 0
 COIN_LEFT = 0
 
 lvl_index = 0
+start_time = 0
 game_map = None
 is_win = None
 
@@ -79,7 +80,7 @@ def load_level(lvl_name):
 
 class MapObject(pygame.sprite.Sprite):
     def __init__(self, x, y, *groups, size=(TILE_SIZE, TILE_SIZE)):
-        super().__init__(*groups, all_sprites, map_objects)
+        super().__init__(*groups, all_sprites)
         self.image = pygame.Surface(size)
 
         self.x_shift = 0
@@ -102,13 +103,13 @@ class MapObject(pygame.sprite.Sprite):
 
 class Wall(MapObject):
     def __init__(self, x, y, *groups):
-        super().__init__(x, y, *groups)
+        super().__init__(x, y, *groups, map_objects)
         self.image.fill(orange)
 
 
 class Ladder(MapObject):
     def __init__(self, x, y, *groups):
-        super().__init__(x, y, *groups)
+        super().__init__(x, y, *groups, map_objects)
         self.image.fill(yellow)
 
 
@@ -116,7 +117,7 @@ class Bridge(MapObject):
     height = 10
 
     def __init__(self, x, y, *groups):
-        super().__init__(x, y, *groups, size=(TILE_SIZE, Bridge.height))
+        super().__init__(x, y, *groups, map_objects, size=(TILE_SIZE, Bridge.height))
         self.image.fill(white)
 
 
@@ -177,13 +178,6 @@ class ManagedGameObject(pygame.sprite.Sprite):
         if y_shift != 0:
             self.rect.y = wall.y + TILE_SIZE * (2 * (y_shift < 0) - 1)
 
-    def update_position(self, x, y):
-        self.x_shift = x
-        self.y_shift = y
-
-        self.rect.x = self.x + self.x_shift
-        self.rect.y = self.y + self.y_shift
-
     def update_map_coord(self, x, y):
         self.map_x = (x + TILE_SIZE // 2) // TILE_SIZE
         self.map_y = (y + TILE_SIZE // 2) // TILE_SIZE
@@ -199,7 +193,7 @@ class Player(ManagedGameObject):
 
     def update(self, *args, **kwargs) -> None:
         self.rect.y += self.speed_v
-        if have_collision(self, map_objects) and not have_collision(self, coins):
+        if have_collision(self, map_objects):
             self.rect.y -= self.speed_v
         self.rect.y += 1
         if have_collision(self, map_objects):
@@ -254,8 +248,7 @@ class Player(ManagedGameObject):
         self.x = self.rect.x
         self.y = self.rect.y
 
-        if x_shift + y_shift != 0:
-            self.update_map_coord(self.x, self.y)
+        self.update_map_coord(self.x, self.y)
 
 
 class Enemy(ManagedGameObject):
@@ -332,9 +325,14 @@ class Enemy(ManagedGameObject):
                     queue.append((next_x, next_y))
 
         x, y = target
-        if distances[y][x] == inf:
-            print_warning(f'Warning caused in find_path method. Program cant find path from enemy(' +
-                          f'{self.map_x},{self.map_y}) to player({x}, {y})')
+        try:
+            if distances[y][x] == inf:
+                print_warning(f'Warning caused in find_path method. Program cant find'
+                              f'path from enemy({self.map_x},{self.map_y}) to player({x}, {y})')
+                return False
+        except IndexError:
+            print_warning(f'Warning caused in find_path method. Wrong index: target({x}, {y}),' +
+                          f'map({len(self.__map[0])},{len(self.__map)})')
             return False
 
         self.path.clear()
@@ -449,7 +447,7 @@ def draw(is_pause):  # Функция отрисовки кадров
 
 
 def play_game(lvl_name, is_new_game=False):
-    global LIVES, game_map, lvl_index
+    global LIVES, game_map, lvl_index, start_time
 
     fps = 60  # количество кадров в секунду
     clock = pygame.time.Clock()
@@ -460,6 +458,7 @@ def play_game(lvl_name, is_new_game=False):
     event = None
 
     if is_new_game:
+        start_time = timer()
         LIVES = 5
         lvl_index = 0
 
@@ -508,7 +507,7 @@ def play_game(lvl_name, is_new_game=False):
             if LIVES != 0:
                 lvl_index += is_win
                 if lvl_index >= len(LEVELS):
-                    show_victory_screen(LIVES, 12)
+                    show_victory_screen(LIVES, int(timer() - start_time))
                     return False
                 running = play_game(LEVELS[lvl_index])
             else:

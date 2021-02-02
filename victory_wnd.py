@@ -16,17 +16,17 @@ fps = 60  # количество кадров в секунду
 clock = pygame.time.Clock()
 
 
-def draw(lives, time):
+def draw(lives, seconds):
     fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Итоговый счет", (WIDTH // 2, 100), 60, None, white, True)
     show_text(screen, f"Оставшиеся жизни: {lives}", (WIDTH // 2, 200), 60, None, white, True)
-    show_text(screen, f"Время прохождения: {dt.time(second=time).__str__()}",
+    show_text(screen, f"Время прохождения: {dt.timedelta(seconds=seconds).__str__()}",
               (WIDTH // 2, 300), 60, None, white, True)
 
 
-def show_victory_screen(lives, time):
+def show_victory_screen(lives, seconds):
     global screen
     screen = pygame.display.set_mode(SIZE)
 
@@ -43,7 +43,7 @@ def show_victory_screen(lives, time):
 
             manager.process_events(e)
 
-        draw(lives, time)
+        draw(lives, seconds)
 
         manager.update(time_del)
         manager.draw_ui(screen)

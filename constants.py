@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import pygame
 
 # Цвета
@@ -25,6 +26,10 @@ COINS_PROBABILITY = 0.005
 def terminate():
     pygame.quit()
     sys.exit()
+
+
+def timer():
+    return time.time()
 
 
 def show_text(surface, text, position: (list, tuple), size=26, font=None, color=black,
