@@ -117,7 +117,7 @@ if __name__ == '__main__':
             all_sprites.update(event)
         # ...
 
-        draw()
+        draw(pause)
 
         # изменение игрового мира
         if game and not pause:

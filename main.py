@@ -1,6 +1,3 @@
-import os
-import sys
-
 import game
 from constants import *
 
@@ -15,48 +12,44 @@ manager = pygame_gui.UIManager(SIZE)
 
 start_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 200, 200, 50),
                                          "Начать", manager)
+description_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 300, 200, 50),
+                                               "Как играть", manager)
 exit_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 400, 200, 50),
                                         "Выйти из игры", manager)
+back_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 500, 200, 50),
+                                        "Назад", manager)
 
 
-def load_image(image_path, color_key=None):
-    """
-    Функция загружает изображение и возвращает объект типа pygame.image
-    Если программа не может найти/открыть файл программа завершит свою работу
-    :param image_path: Путь к картинке
-    :param color_key: Цвет прозрачного фона (None (по умолчанию) если изобрадение уже прозрачно).
-                      укажите -1, чтобы сделать прозрачнфм цветот левый верхний пиксель картинки
-    """
-    full_name = os.path.join(image_path)
-
-    if not os.path.isfile(full_name):
-        print(f"Файл с изображением '{full_name}' не найден")
-        sys.exit()
-    image = pygame.image.load(full_name)
-
-    if color_key is not None:
-        image = image.convert()
-        if color_key == -1:
-            color_key = image.get_at((0, 0))
-        image.set_colorkey(color_key)
-    else:
-        image = image.convert_alpha()
-
-    return image
-
-
-def draw():
-    intro_text = "Расхититель гробниц"
+def draw_main_view():
+    start_btn.show()
+    description_btn.show()
+    exit_btn.show()
+    back_btn.hide()
     fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
-    font = pygame.font.Font(None, 60)
-    text = font.render(intro_text, True, white)
-    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 100))
+    show_text(screen, "Расхититель гробниц", (WIDTH // 2, 100), 60, None, white, True)
+
+
+def draw_description_view():
+    start_btn.hide()
+    description_btn.hide()
+    exit_btn.hide()
+    back_btn.show()
+
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
+    screen.blit(fon, (0, 0))
+
+    show_text(screen, "Как играть:", (50, 100), 60, None, white)
+    show_text(screen, "Перемещайте игрока с помощью стрелок", (50, 200), 48, None, white)
+    show_text(screen, "и собирайте монеты", (50, 240), 48, None, white)
+    show_text(screen, "Чтобы поставить/снять игру с паузы", (50, 300), 48, None, white)
+    show_text(screen, "нажмите пробел", (50, 340), 48, None, white)
 
 
 def start_screen():
     global screen
+    draw = draw_main_view
 
     while True:
         time_del = clock.tick(fps) / 1000
@@ -67,10 +60,14 @@ def start_screen():
             if e.type == pygame.USEREVENT:
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == start_btn:
-                        game.start_game('level1', True)
+                        game.play_game('level1', True)
                         screen = pygame.display.set_mode(SIZE)
+                    if e.ui_element == description_btn:
+                        draw = draw_description_view
                     if e.ui_element == exit_btn:
                         terminate()
+                    if e.ui_element == back_btn:
+                        draw = draw_main_view
 
             manager.process_events(e)
 
@@ -81,11 +78,6 @@ def start_screen():
 
         pygame.display.flip()
         clock.tick(fps)
-
-
-def terminate():
-    pygame.quit()
-    sys.exit()
 
 
 if __name__ == '__main__':

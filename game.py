@@ -1,8 +1,6 @@
-import os
-import sys
-
 from constants import *
 from sprite_groups import *
+from victory_wnd import show_victory_screen
 from collections import deque
 
 import pygame
@@ -23,40 +21,16 @@ game_map = None
 is_win = None
 
 
-def print_warning(text):
-    print("\033[33m{}\033[0m".format(text))
+def print_warning(*args):
+    for text in args:
+        print("\033[33m{}\033[0m".format(str(text)), end=' ')
+    print()
 
 
 def set_size(x, y):
     global SIZE, WIDTH, HEIGHT, screen
     SIZE = WIDTH, HEIGHT = (x * TILE_SIZE, y * TILE_SIZE)
     screen = pygame.display.set_mode(SIZE)
-
-
-def load_image(image_path, color_key=None):
-    """
-    Функция загружает изображение и возвращает объект типа pygame.image
-    Если программа не может найти/открыть файл программа завершит свою работу
-    :param image_path: Путь к картинке
-    :param color_key: Цвет прозрачного фона (None (по умолчанию) если изобрадение уже прозрачно).
-                      укажите -1, чтобы сделать прозрачнфм цветот левый верхний пиксель картинки
-    """
-    full_name = os.path.join(image_path)
-
-    if not os.path.isfile(full_name):
-        print_warning(f"Файл с изображением '{full_name}' не найден")
-        sys.exit()
-    image = pygame.image.load(full_name)
-
-    if color_key is not None:
-        image = image.convert()
-        if color_key == -1:
-            color_key = image.get_at((0, 0))
-        image.set_colorkey(color_key)
-    else:
-        image = image.convert_alpha()
-
-    return image
 
 
 def load_level(lvl_name):
@@ -101,34 +75,6 @@ def load_level(lvl_name):
         enemy.set_map(lvl_map)
 
     return hero, opponents, lvl_map
-
-
-def show_message(surface, text, position: (list, tuple), font=None, color=black):
-    font = pygame.font.SysFont(font, 26)
-    text = font.render(text, True, color)
-    text_x, text_y = position
-
-    surface.blit(text, (text_x, text_y))
-
-
-def draw():  # Функция отрисовки кадров
-    screen.fill(gray)
-
-    all_sprites.draw(screen)
-    coins.draw(screen)
-    player.draw(screen)
-    enemies.draw(screen)
-    animations.draw(screen)
-
-    show_message(screen, f'Жизней:', (0, 0))
-    show_message(screen, str(heart_char * LIVES), (75, -8), "segoeuisymbol", red)
-    show_message(screen, f'Собрано монет: {COIN_AMOUNT}', (0, 24))
-    show_message(screen, f'Осталось монет: {COIN_LEFT}', (0, 48))
-
-    assert isinstance(game_map, Map)
-    for enemy in game_map.enemies:
-        for x, y in enemy.path:
-            pygame.draw.circle(screen, green, ((x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE), 10)
 
 
 class MapObject(pygame.sprite.Sprite):
@@ -424,7 +370,7 @@ class Map:
         global is_win
         if COIN_LEFT == 0:
             is_win = True
-            return  True
+            return True
         return False
 
     def check_player_takes_coin(self):
@@ -467,14 +413,42 @@ class Animation(pygame.sprite.Sprite):
         return self.image.get_alpha() != 0
 
     def update(self, *args, **kwargs) -> None:
+        if kwargs.get('is_pause', None) is True:
+            self.increase = False
+            self.image.set_alpha(0)
+
         if self.increase:
             self.image.set_alpha(min(255, self.image.get_alpha() + 2))
             self.increase = self.image.get_alpha() < 255
         elif self.image.get_alpha() != 0:
             self.image.set_alpha(max(0, self.image.get_alpha() - 4))
+        else:
+            self.kill()
 
 
-def start_game(lvl_name, is_new_game=False):
+def draw(is_pause):  # Функция отрисовки кадров
+    screen.fill(gray)
+
+    all_sprites.draw(screen)
+    coins.draw(screen)
+    player.draw(screen)
+    enemies.draw(screen)
+    animations.draw(screen)
+
+    show_text(screen, f'Жизней:', (0, 0))
+    show_text(screen, heart_char * LIVES, (75, -8), 26, "segoeuisymbol", red)
+    show_text(screen, f'Собрано монет: {COIN_AMOUNT}', (0, 24))
+    show_text(screen, f'Осталось монет: {COIN_LEFT}', (0, 48))
+    if is_pause:
+        show_text(screen, 'Пауза', (WIDTH // 2 - 100, HEIGHT // 2 - 50), size=108, color=black)
+
+    assert isinstance(game_map, Map)
+    for enemy in game_map.enemies:
+        for x, y in enemy.path:
+            pygame.draw.circle(screen, green, ((x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE), 10)
+
+
+def play_game(lvl_name, is_new_game=False):
     global LIVES, game_map, lvl_index
 
     fps = 60  # количество кадров в секунду
@@ -500,14 +474,8 @@ def start_game(lvl_name, is_new_game=False):
                 sys.exit()
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
+                if event.key == pygame.K_SPACE and game:
                     pause = not pause
-                if event.key == pygame.K_r:
-                    game_map = Map()
-                    game_map.load(LEVELS[0])
-
-                    Animation(LEVEL_NAME)
-                    game = True
 
             # обработка остальных событий
             # ...
@@ -517,10 +485,10 @@ def start_game(lvl_name, is_new_game=False):
             game_map.update()
             all_sprites.update(event)
         else:
-            animations.update(event)
+            animations.update(event, is_pause=pause)
         # ...
 
-        draw()
+        draw(pause)
 
         # изменение игрового мира
         if game and not pause:
@@ -539,9 +507,12 @@ def start_game(lvl_name, is_new_game=False):
 
             if LIVES != 0:
                 lvl_index += is_win
-                start_game(LEVELS[lvl_index])
+                if lvl_index >= len(LEVELS):
+                    show_victory_screen(LIVES, 12)
+                    return False
+                running = play_game(LEVELS[lvl_index])
             else:
-                return
+                return False
         # ...
 
         pygame.display.flip()  # смена кадра
@@ -549,6 +520,8 @@ def start_game(lvl_name, is_new_game=False):
         # временная задержка
         clock.tick(fps)
 
+    return False
+
 
 if __name__ == '__main__':
-    start_game('level2')
+    play_game('level2')
