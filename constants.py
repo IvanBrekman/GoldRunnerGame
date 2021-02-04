@@ -17,6 +17,7 @@ have_collision = pygame.sprite.spritecollideany
 heart_char = chr(10_084)
 
 DATA_DIR = "F:/3_Programming/Python/Python_Projects/GoldRunnerGame/resources"
+MY_DB = "game_highscores.sqlite"
 LEVELS = ["level1", "level2"]
 TILE_SIZE = 40
 MAX_COINS = 5

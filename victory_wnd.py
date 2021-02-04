@@ -2,6 +2,7 @@ from constants import *
 
 import pygame
 import pygame_gui
+import sqlite3
 import datetime as dt
 
 SIZE = WIDTH, HEIGHT = (800, 600)
@@ -10,10 +11,26 @@ screen = pygame.display.set_mode(SIZE)
 pygame.init()  # Инициализация движка pygame
 manager = pygame_gui.UIManager(SIZE)
 
-menu_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 400, 200, 50),
+menu_btn = pygame_gui.elements.UIButton(pygame.Rect(WIDTH // 2 - 100, 500, 200, 50),
                                         "Главное меню", manager)
+player_name_tel = pygame_gui.elements.UITextEntryLine(pygame.Rect(325, 403, 400, 100), manager)
+player_name_tel.set_text_length_limit(10)
+player_name_tel.set_text("Player")
+
 fps = 60  # количество кадров в секунду
 clock = pygame.time.Clock()
+
+
+def save_score(name, total_time, lives):
+    con = sqlite3.connect(f"{DATA_DIR}/database/{MY_DB}")
+    cur = con.cursor()
+
+    request = f"""INSERT INTO highscores(player_name, time, lives)
+                  VALUES ('{name or 'Player'}', {total_time}, {lives})"""
+    cur.execute(request)
+
+    con.commit()
+    con.close()
 
 
 def draw(lives, seconds):
@@ -24,6 +41,7 @@ def draw(lives, seconds):
     show_text(screen, f"Оставшиеся жизни: {lives}", (WIDTH // 2, 200), 60, None, white, True)
     show_text(screen, f"Время прохождения: {dt.timedelta(seconds=seconds).__str__()}",
               (WIDTH // 2, 300), 60, None, white, True)
+    show_text(screen, "Имя игрока: ", (WIDTH // 2 - 300, 400), 48, None, white)
 
 
 def show_victory_screen(lives, seconds):
@@ -39,6 +57,7 @@ def show_victory_screen(lives, seconds):
             if e.type == pygame.USEREVENT:
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == menu_btn:
+                        save_score(player_name_tel.text, seconds, lives)
                         return
 
             manager.process_events(e)

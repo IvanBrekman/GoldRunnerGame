@@ -28,6 +28,12 @@ def print_warning(*args):
     print()
 
 
+def print_error(*args):
+    for text in args:
+        print("\033[31m{}\033[0m".format(str(text)), end=' ')
+    print()
+
+
 def set_size(x, y):
     global SIZE, WIDTH, HEIGHT, screen
     SIZE = WIDTH, HEIGHT = (x * TILE_SIZE, y * TILE_SIZE)
@@ -331,8 +337,8 @@ class Enemy(ManagedGameObject):
                               f'path from enemy({self.map_x},{self.map_y}) to player({x}, {y})')
                 return False
         except IndexError:
-            print_warning(f'Warning caused in find_path method. Wrong index: target({x}, {y}),' +
-                          f'map({len(self.__map[0])},{len(self.__map)})')
+            print_error(f'Error caused in find_path method. Wrong index: target({x}, {y}),' +
+                        f'map({len(self.__map[0])},{len(self.__map)})')
             return False
 
         self.path.clear()
