@@ -9,29 +9,19 @@ import random as rd
 pygame.init()  # Инициализация движка pygame
 
 SIZE = WIDTH, HEIGHT = (800, 600)
+screen_rect = pygame.Rect(0, 0, *SIZE)
 screen = pygame.display.set_mode(SIZE)
 
 LEVEL_NAME = ""
+LVL_MAP = ""
 LIVES = 5
 COIN_AMOUNT = 0
 COIN_LEFT = 0
 
 lvl_index = 0
-start_time = 0
+tick_time = 0
 game_map = None
 is_win = None
-
-
-def print_warning(*args):
-    for text in args:
-        print("\033[33m{}\033[0m".format(str(text)), end=' ')
-    print()
-
-
-def print_error(*args):
-    for text in args:
-        print("\033[31m{}\033[0m".format(str(text)), end=' ')
-    print()
 
 
 def set_size(x, y):
@@ -41,11 +31,12 @@ def set_size(x, y):
 
 
 def load_level(lvl_name):
-    global COIN_LEFT, COIN_AMOUNT, LEVEL_NAME
+    global COIN_LEFT, COIN_AMOUNT, LEVEL_NAME, LVL_MAP
 
     with open(f"{DATA_DIR}/levels/{lvl_name}.txt") as lvl_file:
         LEVEL_NAME = lvl_file.readline().strip()
         COIN_LEFT = int(lvl_file.readline().strip())
+        LVL_MAP = lvl_file.readline().strip()
         COIN_AMOUNT = 0
         lvl = lvl_file.readlines()
 
@@ -108,19 +99,24 @@ class MapObject(pygame.sprite.Sprite):
 
 
 class Wall(MapObject):
+    wall_image = f"{DATA_DIR}/images/mapObjects/wall.png"
+
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, map_objects)
-        self.image.fill(orange)
+        self.image = load_image(Wall.wall_image)
 
 
 class Ladder(MapObject):
+    ladder_image = f"{DATA_DIR}/images/mapObjects/ladder.png"
+
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, map_objects)
-        self.image.fill(yellow)
+        self.image = load_image(Ladder.ladder_image)
 
 
 class Bridge(MapObject):
     height = 10
+    bridge_image = f"{DATA_DIR}/images/mapObjects/bridge.png"
 
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, map_objects, size=(TILE_SIZE, Bridge.height))
@@ -128,17 +124,22 @@ class Bridge(MapObject):
 
 
 class Coin(MapObject):
+    sound = init_sound("coin_up.mp3", 1)
+
     def __init__(self, lvl_map, *groups):
         x = y = 0
-        false_enemy = Enemy(1, 1)
-        false_enemy.set_map(lvl_map)
         while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
             x, y = rd.randint(0, WIDTH // TILE_SIZE - 1), rd.randint(0, HEIGHT // TILE_SIZE - 1)
-        false_enemy.kill()
         lvl_map[y][x] = self
 
         super().__init__(x, y, *groups, coins)
-        self.image.fill(green)
+        self.frames = [load_image(f"{DATA_DIR}/images/coins/coin{i + 1}.png") for i in range(7)]
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+
+    def update(self, *args, **kwargs) -> None:
+        self.cur_frame = (self.cur_frame + 1) % (len(self.frames) * 10)
+        self.image = self.frames[self.cur_frame // 10]
 
 
 class ManagedGameObject(pygame.sprite.Sprite):
@@ -333,7 +334,7 @@ class Enemy(ManagedGameObject):
         x, y = target
         try:
             if distances[y][x] == inf:
-                print_warning(f'Warning caused in find_path method. Program cant find'
+                print_warning(f'Warning caused in find_path method. Program cant find '
                               f'path from enemy({self.map_x},{self.map_y}) to player({x}, {y})')
                 return False
         except IndexError:
@@ -366,6 +367,8 @@ class Map:
         global is_win
         if pygame.sprite.spritecollideany(self.player, enemies) is None:
             return False
+
+        play_sound(lose_sound)
         is_win = False
         return True
 
@@ -374,12 +377,17 @@ class Map:
         global is_win
         if COIN_LEFT == 0:
             is_win = True
+            play_sound(win_sound)
             return True
         return False
 
     def check_player_takes_coin(self):
         global COIN_AMOUNT, COIN_LEFT
-        if pygame.sprite.spritecollide(self.player, coins, True):
+        collision = pygame.sprite.spritecollide(self.player, coins, True)
+        if collision:
+            for _ in range(20):
+                Particle(collision[0].rect, rd.randint(-1, 2), rd.randint(-1, 2))
+            play_sound(Coin.sound)
             COIN_AMOUNT += 1
             COIN_LEFT -= 1
             self.coins_on_map -= 1
@@ -430,8 +438,40 @@ class Animation(pygame.sprite.Sprite):
             self.kill()
 
 
+class Particle(pygame.sprite.Sprite):
+    # сгенерируем частицы разного размера
+    fire = [load_image(f"{DATA_DIR}/images/mapObjects/star.png")]
+    for scale in (5, 10, 20):
+        fire.append(pygame.transform.scale(fire[0], (scale, scale)))
+
+    def __init__(self, pos: pygame.Rect, dx: int, dy: int):
+        super().__init__(all_sprites)
+        self.image = rd.choice(self.fire)
+        self.rect = self.image.get_rect()
+
+        # у каждой частицы своя скорость — это вектор
+        self.velocity = [dx, dy]
+        # и свои координаты
+        self.rect.x, self.rect.y = pos.x, pos.y
+
+        # гравитация будет одинаковой (значение константы)
+        self.gravity = 2
+
+    def update(self, *args, **kwargs):
+        # применяем гравитационный эффект:
+        # движение с ускорением под действием гравитации
+        self.velocity[1] += self.gravity
+        # перемещаем частицу
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        # убиваем, если частица ушла за экран
+        if not self.rect.colliderect(screen_rect):
+            self.kill()
+
+
 def draw(is_pause):  # Функция отрисовки кадров
-    screen.fill(gray)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/{LVL_MAP}"), SIZE)
+    screen.blit(fon, (0, 0))
 
     all_sprites.draw(screen)
     coins.draw(screen)
@@ -439,10 +479,10 @@ def draw(is_pause):  # Функция отрисовки кадров
     enemies.draw(screen)
     animations.draw(screen)
 
-    show_text(screen, f'Жизней:', (0, 0))
+    show_text(screen, f'Жизней:', (0, 0), color=yellow)
     show_text(screen, heart_char * LIVES, (75, -8), 26, "segoeuisymbol", red)
-    show_text(screen, f'Собрано монет: {COIN_AMOUNT}', (0, 24))
-    show_text(screen, f'Осталось монет: {COIN_LEFT}', (0, 48))
+    show_text(screen, f'Собрано монет: {COIN_AMOUNT}', (0, 24), color=yellow)
+    show_text(screen, f'Осталось монет: {COIN_LEFT}', (0, 48), color=yellow)
     if is_pause:
         show_text(screen, 'Пауза', (WIDTH // 2 - 100, HEIGHT // 2 - 50), size=108, color=black)
 
@@ -453,7 +493,10 @@ def draw(is_pause):  # Функция отрисовки кадров
 
 
 def play_game(lvl_name, is_new_game=False):
-    global LIVES, game_map, lvl_index, start_time
+    global LIVES, game_map, lvl_index, tick_time
+
+    sound = rd.choice(fon_game_music)
+    play_sound(sound, -1, fade_ms=5000)
 
     fps = 60  # количество кадров в секунду
     clock = pygame.time.Clock()
@@ -464,7 +507,8 @@ def play_game(lvl_name, is_new_game=False):
     event = None
 
     if is_new_game:
-        start_time = timer()
+        tick_time = timer()
+        TIMERS.clear()
         LIVES = 5
         lvl_index = 0
 
@@ -481,6 +525,10 @@ def play_game(lvl_name, is_new_game=False):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE and game:
                     pause = not pause
+                    if pause:
+                        TIMERS.append(timer() - tick_time)
+                    else:
+                        tick_time = timer()
 
             # обработка остальных событий
             # ...
@@ -504,22 +552,25 @@ def play_game(lvl_name, is_new_game=False):
         if game and not pause:
             game = not game_map.check_win()
             if not game:
+                TIMERS.append(timer() - tick_time)
                 anim = Animation('Вы победили')
 
         if not (game or anim):
+            stop_sound(sound)
             for sprite in all_sprites:
                 sprite.kill()
 
             if LIVES != 0:
-                lvl_index += is_win
+                if is_win:
+                    lvl_index += 1
+                    tick_time = timer()
                 if lvl_index >= len(LEVELS):
-                    show_victory_screen(LIVES, int(timer() - start_time))
+                    show_victory_screen(LIVES, int(sum(TIMERS)))
                     return False
                 running = play_game(LEVELS[lvl_index])
             else:
                 return False
         # ...
-
         pygame.display.flip()  # смена кадра
 
         # временная задержка
@@ -529,4 +580,5 @@ def play_game(lvl_name, is_new_game=False):
 
 
 if __name__ == '__main__':
+    print(type(Bridge))
     play_game('level2')

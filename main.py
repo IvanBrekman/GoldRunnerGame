@@ -43,7 +43,7 @@ def draw_main_view():
     exit_btn.show()
     back_btn.hide()
 
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Расхититель гробниц", (WIDTH // 2, 100), 60, None, white, True)
@@ -56,7 +56,7 @@ def draw_description_view():
     exit_btn.hide()
     back_btn.show()
 
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Как играть:", (50, 100), 60, None, white)
@@ -66,14 +66,14 @@ def draw_description_view():
     show_text(screen, "нажмите пробел", (50, 340), 48, None, white)
 
 
-def draw_highcores_view():
+def draw_highscores_view():
     start_btn.hide()
     description_btn.hide()
     highscores_btn.hide()
     exit_btn.hide()
     back_btn.show()
 
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Доска лидеров", (WIDTH // 2, 75), 60, None, red, True)
@@ -101,12 +101,14 @@ def start_screen():
             if e.type == pygame.USEREVENT:
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == start_btn:
+                        stop_sound(fon_menu_music)
                         game.play_game('level1', True)
+                        play_sound(fon_menu_music, -1)
                         screen = pygame.display.set_mode(SIZE)
                     if e.ui_element == description_btn:
                         draw = draw_description_view
                     if e.ui_element == highscores_btn:
-                        draw = draw_highcores_view
+                        draw = draw_highscores_view
                     if e.ui_element == exit_btn:
                         terminate()
                     if e.ui_element == back_btn:
@@ -127,4 +129,5 @@ if __name__ == '__main__':
     fps = 60  # количество кадров в секунду
     clock = pygame.time.Clock()
 
+    play_sound(fon_menu_music, -1)
     start_screen()

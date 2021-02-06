@@ -34,7 +34,7 @@ def save_score(name, total_time, lives):
 
 
 def draw(lives, seconds):
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/menu_fon.jpg"), SIZE)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Итоговый счет", (WIDTH // 2, 100), 60, None, white, True)
@@ -47,6 +47,7 @@ def draw(lives, seconds):
 def show_victory_screen(lives, seconds):
     global screen
     screen = pygame.display.set_mode(SIZE)
+    play_sound(victory_music, -1)
 
     while True:
         time_del = clock.tick(fps) / 1000
@@ -58,6 +59,7 @@ def show_victory_screen(lives, seconds):
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == menu_btn:
                         save_score(player_name_tel.text, seconds, lives)
+                        stop_sound(victory_music)
                         return
 
             manager.process_events(e)

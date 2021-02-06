@@ -3,6 +3,8 @@ import sys
 import time
 import pygame
 
+pygame.init()
+
 # Цвета
 black = pygame.Color('black')
 white = pygame.Color('white')
@@ -19,9 +21,33 @@ heart_char = chr(10_084)
 DATA_DIR = "F:/3_Programming/Python/Python_Projects/GoldRunnerGame/resources"
 MY_DB = "game_highscores.sqlite"
 LEVELS = ["level1", "level2"]
+TIMERS = []
 TILE_SIZE = 40
 MAX_COINS = 5
 COINS_PROBABILITY = 0.005
+
+
+def init_sound(sound_name, volume=0.5):
+    sound = pygame.mixer.Sound(f"{DATA_DIR}/sounds/{sound_name}")
+    sound.set_volume(volume)
+
+    return sound
+
+
+def play_sound(sound, loops=0, start=0, fade_ms=0):
+    sound.play(loops, start, fade_ms)
+
+
+def stop_sound(sound):
+    sound.stop()
+
+
+fon_game_music = [init_sound("game_fon.mp3", 0.3), init_sound("game_fon1.mp3", 0.3),
+                  init_sound("game_fon2.mp3", 0.3), init_sound("game_fon3.mp3", 0.3)]
+fon_menu_music = init_sound("menu_fon.mp3")
+victory_music = init_sound("victory_music.mp3")
+lose_sound = init_sound("lose.mp3", 1)
+win_sound = init_sound("win.mp3", 1)
 
 
 def terminate():
@@ -31,6 +57,18 @@ def terminate():
 
 def timer():
     return time.time()
+
+
+def print_warning(*args):
+    for text in args:
+        print("\033[33m{}\033[0m".format(str(text)), end=' ')
+    print()
+
+
+def print_error(*args):
+    for text in args:
+        print("\033[31m{}\033[0m".format(str(text)), end=' ')
+    print()
 
 
 def show_text(surface, text, position: (list, tuple), size=26, font=None, color=black,
@@ -55,7 +93,7 @@ def load_image(image_path, color_key=None):
     full_name = os.path.join(image_path)
 
     if not os.path.isfile(full_name):
-        print(f"Файл с изображением '{full_name}' не найден")
+        print_error(f"Файл с изображением '{full_name}' не найден")
         sys.exit()
     image = pygame.image.load(full_name)
 
