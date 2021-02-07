@@ -6,10 +6,9 @@ from collections import deque
 import pygame
 import random as rd
 
-pygame.init()  # Инициализация движка pygame
-
-SIZE = WIDTH, HEIGHT = (800, 600)
+SIZE = WIDTH, HEIGHT = (1600, 600)
 screen = pygame.display.set_mode(SIZE)
+pygame.init()  # Инициализация движка pygame
 
 LEVEL_NAME = ""
 LVL_MAP = ""
@@ -25,6 +24,7 @@ is_win = None
 
 def set_size(x, y):
     global SIZE, WIDTH, HEIGHT, screen
+
     SIZE = WIDTH, HEIGHT = (x * TILE_SIZE, y * TILE_SIZE)
     screen = pygame.display.set_mode(SIZE)
 
@@ -133,10 +133,11 @@ class Coin(MapObject):
     sound = init_sound("coin_up.mp3", 1)
 
     def __init__(self, lvl_map, *groups, x=None, y=None):
+        print(len(lvl_map), len(lvl_map[0]))
         if x is None or y is None:
             x = y = 0
             while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
-                x, y = rd.randint(0, WIDTH // TILE_SIZE - 2), rd.randint(0, HEIGHT // TILE_SIZE - 2)
+                x, y = rd.randint(0, len(lvl_map[0]) - 2), rd.randint(0, len(lvl_map) - 2)
         lvl_map[y][x] = self
 
         super().__init__(x, y, *groups, coins)
@@ -153,6 +154,9 @@ class ManagedGameObject(pygame.sprite.Sprite):
     def __init__(self, x, y, *groups):
         super().__init__(*groups, all_sprites)
         self.image = pygame.Surface([TILE_SIZE, TILE_SIZE])
+        self.walk_index = 0
+        self.climb_index = 0
+        self.direction = 0
         self.is_bot = None
         
         self.speed_h = 0
@@ -166,7 +170,7 @@ class ManagedGameObject(pygame.sprite.Sprite):
         self.rect.x = x * TILE_SIZE
         self.rect.y = y * TILE_SIZE
 
-    def get_multiplayer(self):
+    def get_multiplayer(self) -> float:
         self.rect.y += 1
         if have_collision(self, map_objects):
             self.rect.y -= 1
@@ -174,6 +178,25 @@ class ManagedGameObject(pygame.sprite.Sprite):
 
         self.rect.y -= 1
         return 0.7
+
+    def set_image(self, left: bool, right: bool, up: bool, down: bool) -> None:
+        player_class = Player if isinstance(self, Player) else Enemy
+        if left or right:
+            self.direction = right - 1
+            self.walk_index = (self.walk_index + 1) % (len(player_class.walk) * 10)
+            self.climb_index = 0
+
+            self.image = player_class.walk[self.walk_index // 10]
+        elif up or down:
+            self.walk_index = 0
+            self.climb_index = (self.climb_index + 1) % (len(player_class.climb) * 10)
+
+            self.image = player_class.climb[self.climb_index // 10]
+        else:
+            self.image = player_class.stand
+
+        if self.direction == -1:
+            self.image = pygame.transform.flip(self.image, True, False)
 
     @staticmethod
     def correcting_position(obj_coord, col_coord, step):
@@ -194,6 +217,8 @@ class ManagedGameObject(pygame.sprite.Sprite):
         self.map_y = (y + TILE_SIZE // 2) // TILE_SIZE
     
     def move(self, k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed):
+        self.set_image(key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
+
         self.rect.y += self.speed_v
         if have_collision(self, map_objects):
             self.rect.y -= self.speed_v
@@ -252,6 +277,11 @@ class ManagedGameObject(pygame.sprite.Sprite):
 
 
 class Player(ManagedGameObject):
+    dir = f"{DATA_DIR}/images/player/"
+    walk = [load_image(f"{dir}player_walk1.png"), load_image(f"{dir}player_walk2.png")]
+    climb = [load_image(f"{dir}player_climb1.png"), load_image(f"{dir}player_climb2.png")]
+    stand = load_image(f"{dir}player_stand.png")
+
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, player)
         self.image = load_image(f"{DATA_DIR}/images/player/player_stand.png")
@@ -283,6 +313,11 @@ class Player(ManagedGameObject):
 
 
 class Enemy(ManagedGameObject):
+    dir = f"{DATA_DIR}/images/enemy/"
+    walk = [load_image(f"{dir}zombie_walk1.png"), load_image(f"{dir}zombie_walk2.png")]
+    climb = [load_image(f"{dir}zombie_climb1.png"), load_image(f"{dir}zombie_climb2.png")]
+    stand = load_image(f"{dir}/zombie_stand.png")
+
     def __init__(self, x, y, *groups):
         super().__init__(x, y, enemies, *groups)
 
@@ -553,7 +588,6 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
     sound = rd.choice(fon_game_music)
     play_sound(sound, -1, fade_ms=5000)
 
-    fps = 60  # количество кадров в секунду
     clock = pygame.time.Clock()
     running = True
 
@@ -635,4 +669,4 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
 
 if __name__ == '__main__':
-    play_game('level3', 1)
+    play_game('level2', 1)

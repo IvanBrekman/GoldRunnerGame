@@ -25,6 +25,7 @@ highscores_btn = button(pygame.Rect(WIDTH // 2 - 100, 350, 200, 50), "Доска
 
 exit_btn = button(pygame.Rect(WIDTH // 2 - 100, 425, 200, 50), "Выйти из игры", manager)
 back_btn = button(pygame.Rect(WIDTH // 2 - 100, 500, 200, 50), "Назад", manager)
+clock = pygame.time.Clock()
 
 
 def get_highscores() -> iter:
@@ -140,8 +141,5 @@ def start_screen():
 
 
 if __name__ == '__main__':
-    fps = 60  # количество кадров в секунду
-    clock = pygame.time.Clock()
-
     play_sound(fon_menu_music, -1)
     start_screen()

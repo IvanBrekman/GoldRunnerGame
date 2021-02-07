@@ -17,7 +17,6 @@ player_name_tel = pygame_gui.elements.UITextEntryLine(pygame.Rect(325, 403, 400,
 player_name_tel.set_text_length_limit(10)
 player_name_tel.set_text("Player")
 
-fps = 60  # количество кадров в секунду
 clock = pygame.time.Clock()
 
 
