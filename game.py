@@ -623,7 +623,7 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
             # ...
 
         # формирование кадра
-        if game and not pause:
+        if game and not pause and not anim:
             game_map.update()
             all_sprites.update(event)
         else:
