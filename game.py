@@ -9,7 +9,6 @@ import random as rd
 pygame.init()  # Инициализация движка pygame
 
 SIZE = WIDTH, HEIGHT = (800, 600)
-screen_rect = pygame.Rect(0, 0, *SIZE)
 screen = pygame.display.set_mode(SIZE)
 
 LEVEL_NAME = ""
@@ -42,6 +41,7 @@ def load_level(lvl_name):
 
     lvl_map = []
     opponents = []
+    coins_place = []
     hero = None
 
     for i, row in enumerate(lvl):
@@ -50,20 +50,25 @@ def load_level(lvl_name):
             if elem == '0':
                 map_object = None
             elif elem == '1':
-                map_object = Wall(j, i, walls)
+                map_object = Wall(j, i, False, walls)
             elif elem == '2':
-                map_object = Ladder(j, i, ladders)
+                map_object = Wall(j, i, True, walls)
             elif elem == '3':
-                map_object = Bridge(j, i, bridges)
+                map_object = Ladder(j, i, ladders)
             elif elem == '4':
+                map_object = Bridge(j, i, bridges)
+            elif elem == '5':
                 hero = Player(j, i)
                 lvl_map[i].append(hero)
                 continue
-            elif elem == '5':
+            elif elem == '6':
                 enemy = Enemy(j, i)
                 opponents.append(enemy)
                 lvl_map[i].append(enemy)
                 continue
+            elif elem == '7':
+                map_object = None
+                coins_place.append((i, j))
             else:
                 raise Exception(f"Incorrect data in level file: pos({i},{j}) elem - {elem}")
             lvl_map[i].append(map_object)
@@ -72,7 +77,7 @@ def load_level(lvl_name):
     for enemy in opponents:
         enemy.set_map(lvl_map)
 
-    return hero, opponents, lvl_map
+    return hero, opponents, lvl_map, coins_place
 
 
 class MapObject(pygame.sprite.Sprite):
@@ -100,10 +105,11 @@ class MapObject(pygame.sprite.Sprite):
 
 class Wall(MapObject):
     wall_image = f"{DATA_DIR}/images/mapObjects/wall.png"
+    wall_destroyed_image = f"{DATA_DIR}/images/mapObjects/wall2.png"
 
-    def __init__(self, x, y, *groups):
+    def __init__(self, x, y, is_destroyed, *groups):
         super().__init__(x, y, *groups, map_objects)
-        self.image = load_image(Wall.wall_image)
+        self.image = load_image(Wall.wall_destroyed_image if is_destroyed else Wall.wall_image)
 
 
 class Ladder(MapObject):
@@ -126,10 +132,11 @@ class Bridge(MapObject):
 class Coin(MapObject):
     sound = init_sound("coin_up.mp3", 1)
 
-    def __init__(self, lvl_map, *groups):
-        x = y = 0
-        while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
-            x, y = rd.randint(0, WIDTH // TILE_SIZE - 1), rd.randint(0, HEIGHT // TILE_SIZE - 1)
+    def __init__(self, lvl_map, *groups, x=None, y=None):
+        if x is None or y is None:
+            x = y = 0
+            while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
+                x, y = rd.randint(0, WIDTH // TILE_SIZE - 2), rd.randint(0, HEIGHT // TILE_SIZE - 2)
         lvl_map[y][x] = self
 
         super().__init__(x, y, *groups, coins)
@@ -146,21 +153,18 @@ class ManagedGameObject(pygame.sprite.Sprite):
     def __init__(self, x, y, *groups):
         super().__init__(*groups, all_sprites)
         self.image = pygame.Surface([TILE_SIZE, TILE_SIZE])
-
-        self.x_shift = 0
-        self.y_shift = 0
+        self.is_bot = None
+        
+        self.speed_h = 0
+        self.speed_v = 0
 
         self.map_x = x
         self.map_y = y
         self.map = []
-        self.buffer = None
-
-        self.x = x * TILE_SIZE
-        self.y = y * TILE_SIZE
-
+        
         self.rect = self.image.get_rect()
-        self.rect.x = self.x + self.x_shift
-        self.rect.y = self.y + self.y_shift
+        self.rect.x = x * TILE_SIZE
+        self.rect.y = y * TILE_SIZE
 
     def get_multiplayer(self):
         self.rect.y += 1
@@ -188,62 +192,56 @@ class ManagedGameObject(pygame.sprite.Sprite):
     def update_map_coord(self, x, y):
         self.map_x = (x + TILE_SIZE // 2) // TILE_SIZE
         self.map_y = (y + TILE_SIZE // 2) // TILE_SIZE
-
-
-class Player(ManagedGameObject):
-    def __init__(self, x, y, *groups):
-        super().__init__(x, y, *groups, player)
-        self.image.fill(blue)
-
-        self.speed_h = 5
-        self.speed_v = 3
-
-    def update(self, *args, **kwargs) -> None:
+    
+    def move(self, k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed):
         self.rect.y += self.speed_v
         if have_collision(self, map_objects):
             self.rect.y -= self.speed_v
         self.rect.y += 1
         if have_collision(self, map_objects):
-            if have_collision(self, bridges):
+            if have_collision(self, bridges) and (isinstance(self, Player) or not self.is_bot):
                 y = have_collision(self, bridges).rect.y
                 self.rect.y -= 1 if self.rect.y - y == 1 else 2 if self.rect.y - y > 1 else 0
             else:
                 self.rect.y -= 1
 
         x_shift = y_shift = 0
-        if args and args[0].type == pygame.KEYDOWN:
+        if k_pressed:
             multiplayer = self.get_multiplayer()
-            if args[0].key == pygame.K_LEFT:
+            if key_left_pressed:
                 self.rect.x -= (self.speed_h * multiplayer)
                 x_shift -= (self.speed_h * multiplayer)
-            if args[0].key == pygame.K_RIGHT:
+            if key_right_pressed:
                 self.rect.x += (self.speed_h * multiplayer)
                 x_shift += (self.speed_h * multiplayer)
 
-            if args[0].key == pygame.K_DOWN:
+            if key_down_pressed:
                 self.rect.y += 1
                 if not (have_collision(self, ladders) or have_collision(self, bridges)):
                     self.rect.y -= 1
 
             if have_collision(self, ladders):
                 ladder = have_collision(self, ladders)
-                if args[0].key == pygame.K_UP:
+                if key_up_pressed:
                     self.rect.x += self.correcting_position(self.rect.x, ladder.rect.x, 6)
                     self.rect.y -= self.speed_h
 
                     x_shift = 0
                     y_shift -= self.speed_h
-                if args[0].key == pygame.K_DOWN:
+                if key_down_pressed:
                     self.rect.x += self.correcting_position(self.rect.x, ladder.rect.x, 6)
                     self.rect.y += self.speed_h
 
                     x_shift = 0
                     y_shift += self.speed_h
 
-            if have_collision(self, bridges):
-                if args[0].key == pygame.K_DOWN:
+            if have_collision(self, bridges) and key_down_pressed:
+                if self.rect.y >= have_collision(self, bridges).rect.y:
                     self.rect.y += Bridge.height
                     y_shift += Bridge.height
+                else:
+                    self.rect.y += self.speed_h
+                    y_shift += self.speed_h
 
         if have_collision(self, walls) and x_shift + y_shift != 0:
             self.correcting_collision(have_collision(self, walls).rect, x_shift, y_shift)
@@ -252,16 +250,46 @@ class Player(ManagedGameObject):
             while have_collision(self, walls):
                 self.rect.y += 1
 
-        self.x = self.rect.x
-        self.y = self.rect.y
 
-        self.update_map_coord(self.x, self.y)
+class Player(ManagedGameObject):
+    def __init__(self, x, y, *groups):
+        super().__init__(x, y, *groups, player)
+        self.image = load_image(f"{DATA_DIR}/images/player/player_stand.png")
+
+        self.speed_h = 5
+        self.speed_v = 3
+
+    def update(self, *args, **kwargs) -> None:
+        keys = pygame.key.get_pressed()
+
+        k_pressed = sum(keys) != 0
+        key_left_pressed = keys[pygame.K_LEFT]
+        key_right_pressed = keys[pygame.K_RIGHT]
+        key_up_pressed = keys[pygame.K_UP]
+        key_down_pressed = keys[pygame.K_DOWN]
+        
+        self.move(k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
+        self.update_map_coord(self.rect.x, self.rect.y)
+
+    def draw_label(self):
+        font = pygame.font.Font(None, 18)
+        text = font.render("Player 1", True, yellow)
+
+        tw, th = text.get_size()
+        x, y = self.rect.x + TILE_SIZE // 2 - tw // 2, self.rect.y - th
+
+        pygame.draw.rect(screen, blue, (x - 2, y - 2, tw + 4, th + 4), 2)
+        screen.blit(text, (x, y))
 
 
 class Enemy(ManagedGameObject):
     def __init__(self, x, y, *groups):
         super().__init__(x, y, enemies, *groups)
-        self.image.fill(red)
+
+        self.image = load_image(f"{DATA_DIR}/images/enemy/zombie_stand.png")
+        self.update = self.update_as_bot
+        self.is_bot = True
+
         self.path = []
         self.__map = []
 
@@ -271,6 +299,10 @@ class Enemy(ManagedGameObject):
     def set_map(self, lvl):
         self.__map = lvl
 
+    def set_control_to_player(self):
+        self.update = self.update_as_player
+        self.is_bot = False
+
     def get_all_enemies_pos(self):
         assert isinstance(game_map, Map)
         self.enemies_pos = [(en.map_x, en.map_y) for en in game_map.enemies]
@@ -279,25 +311,72 @@ class Enemy(ManagedGameObject):
         assert isinstance(game_map, Map)
         self.px, self.py = game_map.player.map_x, game_map.player.map_y
 
-    def update(self, *args, **kwargs) -> None:
+    def draw_label(self):
+        if self.is_bot:
+            return
+
+        font = pygame.font.Font(None, 18)
+        text = font.render("Player 2", True, yellow)
+
+        tw, th = text.get_size()
+        x, y = self.rect.x + TILE_SIZE // 2 - tw // 2, self.rect.y - th
+
+        pygame.draw.rect(screen, red, (x - 2, y - 2, tw + 4, th + 4), 2)
+        screen.blit(text, (x, y))
+
+    def update_map_coord(self, p_rect, t_rect):
+        collision = p_rect.clip(t_rect)
+        if (collision.w * collision.h) / (TILE_SIZE ** 2) >= 0.9:
+            self.map_x = t_rect.x // TILE_SIZE
+            self.map_y = t_rect.y // TILE_SIZE
+
+    def update_as_bot(self, *args, **kwargs) -> None:
         self.get_player_pos()
         self.get_all_enemies_pos()
-        self.find_path((self.map_x, self.map_y), (self.px, self.py))
+        path = self.find_path((self.map_x, self.map_y), (self.px, self.py))
 
-        if self.path:
+        if path or len(self.path) > 2:
             x, y = self.path[-1]
             xc, yc = x * TILE_SIZE, y * TILE_SIZE
-            rect = self.rect
+            px, py = self.rect.x, self.rect.y
 
             if any(pos == (x, y) for pos in self.enemies_pos):
                 return
 
-            if rect.x != xc or rect.y != yc:
-                rect.x += self.correcting_position(rect.x, xc, self.speed_h)
-                rect.y += self.correcting_position(rect.y, yc, self.speed_h)
+            k_pressed = px != xc or py != yc
+            k_left_pressed = k_right_pressed = k_up_pressed = k_down_pressed = False
+            if abs(px - xc) > abs(py - yc):
+                self.rect.y = yc
+                if px > xc:
+                    k_left_pressed = px > xc
+                elif px < xc:
+                    k_right_pressed = px < xc
             else:
-                self.update_map_coord(self.rect.x, self.rect.y)
+                self.rect.x = xc
+                if py > yc:
+                    k_up_pressed = py > yc
+                elif py < yc:
+                    k_down_pressed = py < yc
+
+            self.move(k_pressed, k_left_pressed, k_right_pressed, k_up_pressed, k_down_pressed)
+            self.update_map_coord(self.rect, pygame.Rect([xc, yc, TILE_SIZE, TILE_SIZE]))
+
+            if (self.map_x, self.map_y) == self.path[-1]:
                 self.path.pop()
+        else:
+            self.move(False, False, False, False, True)
+
+    def update_as_player(self, *args, **kwargs) -> None:
+        keys = pygame.key.get_pressed()
+
+        k_pressed = sum(keys) != 0
+        key_left_pressed = keys[pygame.K_a]
+        key_right_pressed = keys[pygame.K_d]
+        key_up_pressed = keys[pygame.K_w]
+        key_down_pressed = keys[pygame.K_s]
+
+        self.move(k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
+        super(Enemy, self).update_map_coord(self.rect.x, self.rect.y)
 
     def is_free(self, x, y, dx, dy) -> bool:
         if isinstance(self.__map[y + dy][x + dx], Wall):
@@ -335,10 +414,10 @@ class Enemy(ManagedGameObject):
         try:
             if distances[y][x] == inf:
                 print_warning(f'Warning caused in find_path method. Program cant find '
-                              f'path from enemy({self.map_x},{self.map_y}) to player({x}, {y})')
+                              f'path from enemy({self.map_x},{self.map_y}) to player({x},{y})')
                 return False
         except IndexError:
-            print_error(f'Error caused in find_path method. Wrong index: target({x}, {y}),' +
+            print_error(f'Error caused in find_path method. Wrong index: target({x},{y}),' +
                         f'map({len(self.__map[0])},{len(self.__map)})')
             return False
 
@@ -351,17 +430,24 @@ class Enemy(ManagedGameObject):
 
 
 class Map:
-    def __init__(self):
+    def __init__(self, players_number):
         self.player = None
         self.enemies = []
         self.map = []
+        self.players_number = players_number
         self.coins_on_map = 0
 
     def __str__(self):
         return '\n'.join(str(row) for row in self.map)
 
     def load(self, lvl):
-        self.player, self.enemies, self.map = load_level(lvl)
+        self.player, self.enemies, self.map, coins_dislocation = load_level(lvl)
+        for y, x, in coins_dislocation:
+            Coin(self.map, x=x, y=y)
+        self.coins_on_map = len(coins_dislocation)
+
+        if self.players_number == 2:
+            rd.choice(self.enemies).set_control_to_player()
 
     def check_lose(self) -> bool:
         global is_win
@@ -385,15 +471,13 @@ class Map:
         global COIN_AMOUNT, COIN_LEFT
         collision = pygame.sprite.spritecollide(self.player, coins, True)
         if collision:
-            for _ in range(20):
-                Particle(collision[0].rect, rd.randint(-1, 2), rd.randint(-1, 2))
             play_sound(Coin.sound)
             COIN_AMOUNT += 1
             COIN_LEFT -= 1
             self.coins_on_map -= 1
 
     def update_coins(self):
-        if (self.coins_on_map < min(MAX_COINS, COIN_LEFT) and rd.random() < COINS_PROBABILITY or
+        if (self.coins_on_map < min(MAX_COINS, COIN_LEFT + 1) and rd.random() < COINS_PROBABILITY or
                 self.coins_on_map == 0 and COIN_LEFT > 0):
             Coin(self.map)
             self.coins_on_map += 1
@@ -438,37 +522,6 @@ class Animation(pygame.sprite.Sprite):
             self.kill()
 
 
-class Particle(pygame.sprite.Sprite):
-    # сгенерируем частицы разного размера
-    fire = [load_image(f"{DATA_DIR}/images/mapObjects/star.png")]
-    for scale in (5, 10, 20):
-        fire.append(pygame.transform.scale(fire[0], (scale, scale)))
-
-    def __init__(self, pos: pygame.Rect, dx: int, dy: int):
-        super().__init__(all_sprites)
-        self.image = rd.choice(self.fire)
-        self.rect = self.image.get_rect()
-
-        # у каждой частицы своя скорость — это вектор
-        self.velocity = [dx, dy]
-        # и свои координаты
-        self.rect.x, self.rect.y = pos.x, pos.y
-
-        # гравитация будет одинаковой (значение константы)
-        self.gravity = 2
-
-    def update(self, *args, **kwargs):
-        # применяем гравитационный эффект:
-        # движение с ускорением под действием гравитации
-        self.velocity[1] += self.gravity
-        # перемещаем частицу
-        self.rect.x += self.velocity[0]
-        self.rect.y += self.velocity[1]
-        # убиваем, если частица ушла за экран
-        if not self.rect.colliderect(screen_rect):
-            self.kill()
-
-
 def draw(is_pause):  # Функция отрисовки кадров
     fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/{LVL_MAP}"), SIZE)
     screen.blit(fon, (0, 0))
@@ -487,12 +540,14 @@ def draw(is_pause):  # Функция отрисовки кадров
         show_text(screen, 'Пауза', (WIDTH // 2 - 100, HEIGHT // 2 - 50), size=108, color=black)
 
     assert isinstance(game_map, Map)
+    for game_object in [game_map.player] + game_map.enemies:
+        game_object.draw_label()
     for enemy in game_map.enemies:
         for x, y in enemy.path:
             pygame.draw.circle(screen, green, ((x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE), 10)
 
 
-def play_game(lvl_name, is_new_game=False):
+def play_game(lvl_name, players_number: int, is_new_game=False):
     global LIVES, game_map, lvl_index, tick_time
 
     sound = rd.choice(fon_game_music)
@@ -512,7 +567,7 @@ def play_game(lvl_name, is_new_game=False):
         LIVES = 5
         lvl_index = 0
 
-    game_map = Map()
+    game_map = Map(players_number)
     game_map.load(lvl_name)
 
     anim = Animation(LEVEL_NAME)
@@ -567,7 +622,7 @@ def play_game(lvl_name, is_new_game=False):
                 if lvl_index >= len(LEVELS):
                     show_victory_screen(LIVES, int(sum(TIMERS)))
                     return False
-                running = play_game(LEVELS[lvl_index])
+                running = play_game(LEVELS[lvl_index], players_number)
             else:
                 return False
         # ...
@@ -580,5 +635,4 @@ def play_game(lvl_name, is_new_game=False):
 
 
 if __name__ == '__main__':
-    print(type(Bridge))
-    play_game('level2')
+    play_game('level3', 1)
