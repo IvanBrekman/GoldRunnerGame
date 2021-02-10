@@ -25,6 +25,7 @@ LEVELS = ["level1", "level2", "level3"]
 TIMERS = []
 TILE_SIZE = 40
 MAX_COINS = 5
+DESTROYED_TIME = 2
 COINS_PROBABILITY = 0.005
 
 
@@ -43,12 +44,13 @@ def stop_sound(sound):
     sound.stop()
 
 
-fon_game_music = [init_sound("game_fon.mp3", 0.1), init_sound("game_fon1.mp3", 0.1),
-                  init_sound("game_fon2.mp3", 0.1), init_sound("game_fon3.mp3", 0.1)]
-fon_menu_music = init_sound("menu_fon.mp3", 0.1)
-victory_music = init_sound("victory_music.mp3", 0.1)
+fon_game_music = [init_sound("game_fon.mp3", 0.01), init_sound("game_fon1.mp3", 0.01),
+                  init_sound("game_fon2.mp3", 0.01), init_sound("game_fon3.mp3", 0.01)]
+fon_menu_music = init_sound("menu_fon.mp3", 0.01)
+victory_music = init_sound("victory_music.mp3", 0.01)
 lose_sound = init_sound("lose.mp3")
 win_sound = init_sound("win.mp3")
+zombie_died_sound = init_sound("zombie_died_sound.mp3")
 
 
 def terminate():

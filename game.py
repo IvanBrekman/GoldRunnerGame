@@ -4,18 +4,20 @@ from victory_wnd import show_victory_screen
 from collections import deque
 
 import pygame
+import time
 import random as rd
 
-SIZE = WIDTH, HEIGHT = (1600, 600)
+SIZE = WIDTH, HEIGHT = (800, 600)
 screen = pygame.display.set_mode(SIZE)
 pygame.init()  # Инициализация движка pygame
 
 LEVEL_NAME = ""
-LVL_MAP = ""
+LEVEL_FON = ""
 LIVES = 5
 COIN_AMOUNT = 0
 COIN_LEFT = 0
 
+destroyed_walls = {}
 lvl_index = 0
 tick_time = 0
 game_map = None
@@ -30,12 +32,12 @@ def set_size(x, y):
 
 
 def load_level(lvl_name):
-    global COIN_LEFT, COIN_AMOUNT, LEVEL_NAME, LVL_MAP
+    global COIN_LEFT, COIN_AMOUNT, LEVEL_NAME, LEVEL_FON
 
     with open(f"{DATA_DIR}/levels/{lvl_name}.txt") as lvl_file:
         LEVEL_NAME = lvl_file.readline().strip()
         COIN_LEFT = int(lvl_file.readline().strip())
-        LVL_MAP = lvl_file.readline().strip()
+        LEVEL_FON = lvl_file.readline().strip()
         COIN_AMOUNT = 0
         lvl = lvl_file.readlines()
 
@@ -74,6 +76,7 @@ def load_level(lvl_name):
             lvl_map[i].append(map_object)
 
     set_size(len(lvl_map[0]), len(lvl_map))
+    hero.set_map(lvl_map)
     for enemy in opponents:
         enemy.set_map(lvl_map)
 
@@ -110,6 +113,7 @@ class Wall(MapObject):
     def __init__(self, x, y, is_destroyed, *groups):
         super().__init__(x, y, *groups, map_objects)
         self.image = load_image(Wall.wall_destroyed_image if is_destroyed else Wall.wall_image)
+        self.is_destroyed = is_destroyed
 
 
 class Ladder(MapObject):
@@ -133,7 +137,6 @@ class Coin(MapObject):
     sound = init_sound("coin_up.mp3", 1)
 
     def __init__(self, lvl_map, *groups, x=None, y=None):
-        print(len(lvl_map), len(lvl_map[0]))
         if x is None or y is None:
             x = y = 0
             while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
@@ -179,6 +182,9 @@ class ManagedGameObject(pygame.sprite.Sprite):
         self.rect.y -= 1
         return 0.7
 
+    def set_map(self, lvl):
+        self.map = lvl
+
     def set_image(self, left: bool, right: bool, up: bool, down: bool) -> None:
         player_class = Player if isinstance(self, Player) else Enemy
         if left or right:
@@ -218,6 +224,9 @@ class ManagedGameObject(pygame.sprite.Sprite):
     
     def move(self, k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed):
         self.set_image(key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
+
+        if (self.map_x, self.map_y + 1) in destroyed_walls:
+            self.rect.x = self.map_x * TILE_SIZE
 
         self.rect.y += self.speed_v
         if have_collision(self, map_objects):
@@ -285,9 +294,11 @@ class Player(ManagedGameObject):
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, player)
         self.image = load_image(f"{DATA_DIR}/images/player/player_stand.png")
+        self.mask = pygame.mask.from_surface(self.image)
+        self.can_dig = True
 
         self.speed_h = 5
-        self.speed_v = 3
+        self.speed_v = 4
 
     def update(self, *args, **kwargs) -> None:
         keys = pygame.key.get_pressed()
@@ -297,6 +308,15 @@ class Player(ManagedGameObject):
         key_right_pressed = keys[pygame.K_RIGHT]
         key_up_pressed = keys[pygame.K_UP]
         key_down_pressed = keys[pygame.K_DOWN]
+
+        if keys[pygame.K_f] and self.can_dig:
+            x, y = self.map_x, self.map_y
+            d = self.direction * 2 + 1
+            if isinstance(self.map[y + 1][x], MapObject) and \
+                    isinstance(self.map[y + 1][x + d], Wall) and self.map[y + 1][x + d].is_destroyed:
+                destroyed_walls[(x + d, y + 1)] = time.time()
+                self.map[y + 1][x + d].kill()
+                self.map[y + 1][x + d] = None
         
         self.move(k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
         self.update_map_coord(self.rect.x, self.rect.y)
@@ -318,21 +338,21 @@ class Enemy(ManagedGameObject):
     climb = [load_image(f"{dir}zombie_climb1.png"), load_image(f"{dir}zombie_climb2.png")]
     stand = load_image(f"{dir}/zombie_stand.png")
 
-    def __init__(self, x, y, *groups):
+    def __init__(self, x, y, *groups, is_bot=True):
         super().__init__(x, y, enemies, *groups)
 
         self.image = load_image(f"{DATA_DIR}/images/enemy/zombie_stand.png")
-        self.update = self.update_as_bot
-        self.is_bot = True
+        self.mask = pygame.mask.from_surface(self.image)
+        self.update = self.update_as_bot if is_bot else self.update_as_player
+        self.is_bot = is_bot
+
+        self.x = x
+        self.y = y
 
         self.path = []
-        self.__map = []
 
         self.speed_h = 3
         self.speed_v = 3
-
-    def set_map(self, lvl):
-        self.__map = lvl
 
     def set_control_to_player(self):
         self.update = self.update_as_player
@@ -414,12 +434,12 @@ class Enemy(ManagedGameObject):
         super(Enemy, self).update_map_coord(self.rect.x, self.rect.y)
 
     def is_free(self, x, y, dx, dy) -> bool:
-        if isinstance(self.__map[y + dy][x + dx], Wall):
+        if isinstance(self.map[y + dy][x + dx], Wall):
             return False
-        if dy == -1 and not isinstance(self.__map[y][x], Ladder):
+        if dy == -1 and not isinstance(self.map[y][x], Ladder):
             return False
-        if (dx != 0 and not isinstance(self.__map[y + 1][x], (Wall, Ladder))
-                and not isinstance(self.__map[y][x], Bridge)):
+        if (dx != 0 and not isinstance(self.map[y + 1][x], (Wall, Ladder))
+                and not isinstance(self.map[y][x], Bridge)):
             return False
         return True
 
@@ -428,7 +448,7 @@ class Enemy(ManagedGameObject):
             return True
 
         inf = float('inf')
-        w, h = len(self.__map[0]), len(self.__map)
+        w, h = len(self.map[0]), len(self.map)
         x, y = start
         distances = [[inf] * w for _ in range(h)]
         distances[y][x] = 0
@@ -453,7 +473,7 @@ class Enemy(ManagedGameObject):
                 return False
         except IndexError:
             print_error(f'Error caused in find_path method. Wrong index: target({x},{y}),' +
-                        f'map({len(self.__map[0])},{len(self.__map)})')
+                        f'map({len(self.map[0])},{len(self.map)})')
             return False
 
         self.path.clear()
@@ -471,6 +491,7 @@ class Map:
         self.map = []
         self.players_number = players_number
         self.coins_on_map = 0
+        self.forced_lose = False
 
     def __str__(self):
         return '\n'.join(str(row) for row in self.map)
@@ -486,12 +507,13 @@ class Map:
 
     def check_lose(self) -> bool:
         global is_win
-        if pygame.sprite.spritecollideany(self.player, enemies) is None:
-            return False
 
-        play_sound(lose_sound)
-        is_win = False
-        return True
+        for enemy in enemies:
+            if pygame.sprite.collide_mask(self.player, enemy) is not None or self.forced_lose:
+                play_sound(lose_sound)
+                is_win = False
+                return True
+        return False
 
     @staticmethod
     def check_win() -> bool:
@@ -511,6 +533,27 @@ class Map:
             COIN_LEFT -= 1
             self.coins_on_map -= 1
 
+    def check_destroyed_walls(self):
+        if not destroyed_walls:
+            return
+
+        for (x, y), start_time in destroyed_walls.items():
+            if time.time() - start_time >= 2:
+                self.map[y][x] = Wall(x, y, True, walls)
+                destroyed_walls.pop((x, y))
+
+                if have_collision(self.player, walls):
+                    self.forced_lose = True
+
+                for enemy in self.enemies:
+                    if have_collision(enemy, walls):
+                        enemy.kill()
+                        self.enemies.remove(enemy)
+                        self.enemies.append(Enemy(enemy.x, enemy.y, is_bot=enemy.is_bot))
+                        play_sound(zombie_died_sound)
+                        break
+                break
+
     def update_coins(self):
         if (self.coins_on_map < min(MAX_COINS, COIN_LEFT + 1) and rd.random() < COINS_PROBABILITY or
                 self.coins_on_map == 0 and COIN_LEFT > 0):
@@ -519,6 +562,7 @@ class Map:
 
     def update(self):
         self.check_player_takes_coin()
+        self.check_destroyed_walls()
         self.update_coins()
 
 
@@ -558,7 +602,7 @@ class Animation(pygame.sprite.Sprite):
 
 
 def draw(is_pause):  # Функция отрисовки кадров
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/{LVL_MAP}"), SIZE)
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/{LEVEL_FON}"), SIZE)
     screen.blit(fon, (0, 0))
 
     all_sprites.draw(screen)
@@ -624,8 +668,8 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
         # формирование кадра
         if game and not pause and not anim:
-            game_map.update()
             all_sprites.update(event)
+            game_map.update()
         else:
             animations.update(event, is_pause=pause)
         # ...
@@ -669,4 +713,4 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
 
 if __name__ == '__main__':
-    play_game('level2', 1)
+    play_game('level2', 2)
