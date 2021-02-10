@@ -67,10 +67,14 @@ def draw_description_view():
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Как играть:", (50, 100), 60, None, white)
-    show_text(screen, "Перемещайте игрока с помощью стрелок", (50, 200), 48, None, white)
-    show_text(screen, "и собирайте монеты", (50, 240), 48, None, white)
-    show_text(screen, "Чтобы поставить/снять игру с паузы", (50, 300), 48, None, white)
-    show_text(screen, "нажмите пробел", (50, 340), 48, None, white)
+    show_text(screen, "Перемещайте игрока с помощью стрелок", (60, 200), 36, None, white)
+    show_text(screen, "и собирайте монеты", (60, 240), 36, None, white)
+    show_text(screen, "Чтобы копать (если вы подобрали лопату) нажмите F", (60, 300), 36, None,
+              white)
+    show_text(screen, "Чтобы поставить/снять игру с паузы нажмите пробел", (60, 340), 36, None,
+              white)
+    show_text(screen, "Для управления 2 игроком используйте W A S D", (60, 400), 36, None,
+              white)
 
 
 def draw_highscores_view():

@@ -13,7 +13,8 @@ pygame.init()  # Инициализация движка pygame
 
 LEVEL_NAME = ""
 LEVEL_FON = ""
-LIVES = 5
+CAN_DIG = True
+LIVES = 2
 COIN_AMOUNT = 0
 COIN_LEFT = 0
 
@@ -146,11 +147,24 @@ class Coin(MapObject):
         super().__init__(x, y, *groups, coins)
         self.frames = [load_image(f"{DATA_DIR}/images/coins/coin{i + 1}.png") for i in range(7)]
         self.cur_frame = 0
+        self.image = load_image(f"{DATA_DIR}/images/shovel.png")
         self.image = self.frames[self.cur_frame]
 
     def update(self, *args, **kwargs) -> None:
         self.cur_frame = (self.cur_frame + 1) % (len(self.frames) * 10)
         self.image = self.frames[self.cur_frame // 10]
+
+
+class Shovel(MapObject):
+    sound = init_sound("shovel_up.mp3", 1)
+
+    def __init__(self, lvl_map, *groups):
+        x = y = 0
+        while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
+            x, y = rd.randint(0, len(lvl_map[0]) - 2), rd.randint(0, len(lvl_map) - 2)
+
+        super().__init__(x, y, *groups, shovels)
+        self.image = load_image(f"{DATA_DIR}/images/shovel.png")
 
 
 class ManagedGameObject(pygame.sprite.Sprite):
@@ -291,11 +305,13 @@ class Player(ManagedGameObject):
     climb = [load_image(f"{dir}player_climb1.png"), load_image(f"{dir}player_climb2.png")]
     stand = load_image(f"{dir}player_stand.png")
 
+    died_sound = init_sound('death5.mp3')
+
     def __init__(self, x, y, *groups):
         super().__init__(x, y, *groups, player)
         self.image = load_image(f"{DATA_DIR}/images/player/player_stand.png")
         self.mask = pygame.mask.from_surface(self.image)
-        self.can_dig = True
+        self.can_dig = CAN_DIG
 
         self.speed_h = 5
         self.speed_v = 4
@@ -337,6 +353,8 @@ class Enemy(ManagedGameObject):
     walk = [load_image(f"{dir}zombie_walk1.png"), load_image(f"{dir}zombie_walk2.png")]
     climb = [load_image(f"{dir}zombie_climb1.png"), load_image(f"{dir}zombie_climb2.png")]
     stand = load_image(f"{dir}/zombie_stand.png")
+
+    died_sound = init_sound("zombie_died_sound.mp3")
 
     def __init__(self, x, y, *groups, is_bot=True):
         super().__init__(x, y, enemies, *groups)
@@ -510,7 +528,7 @@ class Map:
 
         for enemy in enemies:
             if pygame.sprite.collide_mask(self.player, enemy) is not None or self.forced_lose:
-                play_sound(lose_sound)
+                play_sound(lose_sound if LIVES != 1 else Player.died_sound)
                 is_win = False
                 return True
         return False
@@ -525,13 +543,22 @@ class Map:
         return False
 
     def check_player_takes_coin(self):
-        global COIN_AMOUNT, COIN_LEFT
-        collision = pygame.sprite.spritecollide(self.player, coins, True)
-        if collision:
-            play_sound(Coin.sound)
+        global COIN_AMOUNT, COIN_LEFT, CAN_DIG
+        collision_coins = pygame.sprite.spritecollide(self.player, coins, True)
+        collision_shovels = pygame.sprite.spritecollide(self.player, shovels, True)
+
+        if collision_coins or collision_shovels:
+            play_sound(Coin.sound if collision_coins else Shovel.sound)
             COIN_AMOUNT += 1
             COIN_LEFT -= 1
             self.coins_on_map -= 1
+
+        if collision_shovels:
+            CAN_DIG = True
+            self.player.can_dig = True
+            for shovel in shovels:
+                shovel.kill()
+                self.coins_on_map -= 1
 
     def check_destroyed_walls(self):
         if not destroyed_walls:
@@ -550,14 +577,17 @@ class Map:
                         enemy.kill()
                         self.enemies.remove(enemy)
                         self.enemies.append(Enemy(enemy.x, enemy.y, is_bot=enemy.is_bot))
-                        play_sound(zombie_died_sound)
+                        play_sound(Enemy.died_sound)
                         break
                 break
 
     def update_coins(self):
         if (self.coins_on_map < min(MAX_COINS, COIN_LEFT + 1) and rd.random() < COINS_PROBABILITY or
                 self.coins_on_map == 0 and COIN_LEFT > 0):
-            Coin(self.map)
+            if lvl_index == 1 and COIN_LEFT - self.coins_on_map <= 1 and not self.player.can_dig:
+                Shovel(self.map)
+            else:
+                Coin(self.map)
             self.coins_on_map += 1
 
     def update(self):
@@ -586,6 +616,9 @@ class Animation(pygame.sprite.Sprite):
 
     def __bool__(self):
         return self.image.get_alpha() != 0
+
+    def set_shift(self, x_shift, y_shift):
+        self.rect = self.rect.move(x_shift, y_shift)
 
     def update(self, *args, **kwargs) -> None:
         if kwargs.get('is_pause', None) is True:
@@ -647,8 +680,13 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
     game_map = Map(players_number)
     game_map.load(lvl_name)
-
-    anim = Animation(LEVEL_NAME)
+    if lvl_index == 2:
+        anim = Animation("Now you can dig weak walls!")
+        anim.set_shift(0, -50)
+        anim1 = Animation(LEVEL_NAME)
+        anim1.set_shift(0, 50)
+    else:
+        anim = Animation(LEVEL_NAME)
 
     while running:  # главный игровой цикл
         for event in pygame.event.get():
@@ -713,4 +751,4 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
 
 if __name__ == '__main__':
-    play_game('level2', 2)
+    play_game('level3', 2)

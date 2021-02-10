@@ -50,7 +50,6 @@ fon_menu_music = init_sound("menu_fon.mp3", 0.01)
 victory_music = init_sound("victory_music.mp3", 0.01)
 lose_sound = init_sound("lose.mp3")
 win_sound = init_sound("win.mp3")
-zombie_died_sound = init_sound("zombie_died_sound.mp3")
 
 
 def terminate():
