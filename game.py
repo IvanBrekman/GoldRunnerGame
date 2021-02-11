@@ -13,7 +13,7 @@ pygame.init()  # Инициализация движка pygame
 
 LEVEL_NAME = ""
 LEVEL_FON = ""
-CAN_DIG = True
+CAN_DIG = False
 LIVES = 2
 COIN_AMOUNT = 0
 COIN_LEFT = 0
@@ -24,6 +24,7 @@ tick_time = 0
 game_map = None
 is_win = None
 
+GRAVITY = 1
 
 def set_size(x, y):
     global SIZE, WIDTH, HEIGHT, screen
@@ -116,6 +117,45 @@ class Wall(MapObject):
         self.image = load_image(Wall.wall_destroyed_image if is_destroyed else Wall.wall_image)
         self.is_destroyed = is_destroyed
 
+class Particle(pygame.sprite.Sprite):
+    # сгенерируем частицы разного размера
+    wall_destroyed_image = load_image(f"{DATA_DIR}/images/mapObjects/wall2.png")
+
+    fire = []
+    for scale in (5, 10, 20):
+        fire.append(pygame.transform.scale(wall_destroyed_image, (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(all_sprites)
+        self.image = rd.choice(self.fire)
+        self.rect = self.image.get_rect()
+
+        # у каждой частицы своя скорость — это вектор
+        self.velocity = [dx, dy]
+        # и свои координаты
+        self.rect.x, self.rect.y = pos
+
+        # гравитация будет одинаковой (значение константы)
+        self.gravity = GRAVITY
+
+    def update(self, *args, **kwargs):
+        # применяем гравитационный эффект:
+        # движение с ускорением под действием гравитации
+        self.velocity[1] += self.gravity
+        # перемещаем частицу
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        # убиваем, если частица ушла за экран
+        if not self.rect.colliderect(pygame.Rect([0, 0, *SIZE])):
+            self.kill()
+
+def create_particles(position):
+    # количество создаваемых частиц
+    particle_count = 50
+    # возможные скорости
+    numbers = range(-5, 6)
+    for _ in range(particle_count):
+        Particle(position, rd.choice(numbers), rd.choice(numbers))
 
 class Ladder(MapObject):
     ladder_image = f"{DATA_DIR}/images/mapObjects/ladder.png"
@@ -332,6 +372,7 @@ class Player(ManagedGameObject):
                     isinstance(self.map[y + 1][x + d], Wall) and self.map[y + 1][x + d].is_destroyed:
                 destroyed_walls[(x + d, y + 1)] = time.time()
                 self.map[y + 1][x + d].kill()
+                create_particles(((x + d) * TILE_SIZE + TILE_SIZE // 2, (y + 1) * TILE_SIZE + TILE_SIZE // 2))
                 self.map[y + 1][x + d] = None
         
         self.move(k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
@@ -751,4 +792,4 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
 
 if __name__ == '__main__':
-    play_game('level3', 2)
+    play_game('level1', 2)
