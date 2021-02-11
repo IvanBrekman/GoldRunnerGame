@@ -13,8 +13,8 @@ pygame.init()  # Инициализация движка pygame
 
 LEVEL_NAME = ""
 LEVEL_FON = ""
-CAN_DIG = True
-LIVES = 2
+CAN_DIG = False
+LIVES = 5
 COIN_AMOUNT = 0
 COIN_LEFT = 0
 
@@ -64,8 +64,8 @@ def load_level(lvl_name):
                 hero = Player(j, i)
                 lvl_map[i].append(hero)
                 continue
-            elif elem == '6':
-                enemy = Enemy(j, i)
+            elif elem in ('6', '8'):
+                enemy = Enemy(j, i, elem == '6')
                 opponents.append(enemy)
                 lvl_map[i].append(enemy)
                 continue
@@ -139,9 +139,10 @@ class Coin(MapObject):
 
     def __init__(self, lvl_map, *groups, x=None, y=None):
         if x is None or y is None:
-            x = y = 0
-            while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall)):
+            x = y = script = 0
+            while not (lvl_map[y][x] is None and isinstance(lvl_map[y + 1][x], Wall) and script):
                 x, y = rd.randint(0, len(lvl_map[0]) - 2), rd.randint(0, len(lvl_map) - 2)
+                script = lvl_index != 2 or (x not in (1, 2) and y != 2)
         lvl_map[y][x] = self
 
         super().__init__(x, y, *groups, coins)
@@ -356,12 +357,13 @@ class Enemy(ManagedGameObject):
 
     died_sound = init_sound("zombie_died_sound.mp3")
 
-    def __init__(self, x, y, *groups, is_bot=True):
+    def __init__(self, x, y, can_set_control_to_player, *groups, is_bot=True):
         super().__init__(x, y, enemies, *groups)
 
         self.image = load_image(f"{DATA_DIR}/images/enemy/zombie_stand.png")
         self.mask = pygame.mask.from_surface(self.image)
         self.update = self.update_as_bot if is_bot else self.update_as_player
+        self.can_set_control_to_player = can_set_control_to_player
         self.is_bot = is_bot
 
         self.x = x
@@ -521,7 +523,9 @@ class Map:
         self.coins_on_map = len(coins_dislocation)
 
         if self.players_number == 2:
-            rd.choice(self.enemies).set_control_to_player()
+            suit_enemies = list(filter(lambda en: en.can_set_control_to_player, self.enemies))
+            if suit_enemies:
+                rd.choice(suit_enemies).set_control_to_player()
 
     def check_lose(self) -> bool:
         global is_win
@@ -576,7 +580,8 @@ class Map:
                     if have_collision(enemy, walls):
                         enemy.kill()
                         self.enemies.remove(enemy)
-                        self.enemies.append(Enemy(enemy.x, enemy.y, is_bot=enemy.is_bot))
+                        self.enemies.append(Enemy(enemy.x, enemy.y, enemy.can_set_conytol_to_player,
+                                                  is_bot=enemy.is_bot))
                         play_sound(Enemy.died_sound)
                         break
                 break
