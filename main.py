@@ -69,7 +69,7 @@ def draw_description_view():
     show_text(screen, "Как играть:", (50, 100), 60, None, white)
     show_text(screen, "Перемещайте игрока с помощью стрелок", (60, 200), 36, None, white)
     show_text(screen, "и собирайте монеты", (60, 240), 36, None, white)
-    show_text(screen, "Чтобы копать (если вы подобрали лопату) нажмите F", (60, 300), 36, None,
+    show_text(screen, "Чтобы копать (если вы подобрали лопату) нажмите L", (60, 300), 36, None,
               white)
     show_text(screen, "Чтобы поставить/снять игру с паузы нажмите пробел", (60, 340), 36, None,
               white)

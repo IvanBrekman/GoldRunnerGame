@@ -110,6 +110,7 @@ class MapObject(pygame.sprite.Sprite):
 class Wall(MapObject):
     wall_image = f"{DATA_DIR}/images/mapObjects/wall.png"
     wall_destroyed_image = f"{DATA_DIR}/images/mapObjects/wall2.png"
+    wall_destroyed_sound = init_sound("destroyed_wall_sound.mp3", 0.15)
 
     def __init__(self, x, y, is_destroyed, *groups):
         super().__init__(x, y, *groups, map_objects)
@@ -326,7 +327,7 @@ class Player(ManagedGameObject):
         key_up_pressed = keys[pygame.K_UP]
         key_down_pressed = keys[pygame.K_DOWN]
 
-        if keys[pygame.K_f] and self.can_dig:
+        if keys[pygame.K_l] and self.can_dig:
             x, y = self.map_x, self.map_y
             d = self.direction * 2 + 1
             if isinstance(self.map[y + 1][x], MapObject) and \
@@ -334,6 +335,10 @@ class Player(ManagedGameObject):
                 destroyed_walls[(x + d, y + 1)] = time.time()
                 self.map[y + 1][x + d].kill()
                 self.map[y + 1][x + d] = None
+
+                play_sound(Wall.wall_destroyed_sound)
+                create_particles(((x + d) * TILE_SIZE + TILE_SIZE // 2,
+                                  (y + 1) * TILE_SIZE + TILE_SIZE // 2))
         
         self.move(k_pressed, key_left_pressed, key_right_pressed, key_up_pressed, key_down_pressed)
         self.update_map_coord(self.rect.x, self.rect.y)
@@ -580,7 +585,7 @@ class Map:
                     if have_collision(enemy, walls):
                         enemy.kill()
                         self.enemies.remove(enemy)
-                        self.enemies.append(Enemy(enemy.x, enemy.y, enemy.can_set_conytol_to_player,
+                        self.enemies.append(Enemy(enemy.x, enemy.y, enemy.can_set_control_to_player,
                                                   is_bot=enemy.is_bot))
                         play_sound(Enemy.died_sound)
                         break
@@ -639,6 +644,39 @@ class Animation(pygame.sprite.Sprite):
             self.kill()
 
 
+class DestroyedWallAnimation(pygame.sprite.Sprite):
+    wall_destroyed_image = load_image(f"{DATA_DIR}/images/mapObjects/wall2.png")
+
+    fire = []
+    for scale in (5, 10, 20):
+        fire.append(pygame.transform.scale(wall_destroyed_image, (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(all_sprites)
+        self.image = rd.choice(self.fire)
+        self.rect = self.image.get_rect()
+
+        self.velocity = [dx, dy]
+        self.rect.x, self.rect.y = pos
+        self.gravity = 1
+
+    def update(self, *args, **kwargs):
+        self.velocity[1] += self.gravity
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+
+        if not self.rect.colliderect(pygame.Rect([0, 0, *SIZE])):
+            self.kill()
+
+
+def create_particles(position):
+    particle_count = 50
+    numbers = range(-5, 6)
+
+    for _ in range(particle_count):
+        DestroyedWallAnimation(position, rd.choice(numbers), rd.choice(numbers))
+
+
 def draw(is_pause):  # Функция отрисовки кадров
     fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/{LEVEL_FON}"), SIZE)
     screen.blit(fon, (0, 0))
@@ -659,9 +697,6 @@ def draw(is_pause):  # Функция отрисовки кадров
     assert isinstance(game_map, Map)
     for game_object in [game_map.player] + game_map.enemies:
         game_object.draw_label()
-    for enemy in game_map.enemies:
-        for x, y in enemy.path:
-            pygame.draw.circle(screen, green, ((x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE), 10)
 
 
 def play_game(lvl_name, players_number: int, is_new_game=False):
@@ -756,4 +791,4 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
 
 
 if __name__ == '__main__':
-    play_game('level3', 2)
+    play_game('level1', 1)
