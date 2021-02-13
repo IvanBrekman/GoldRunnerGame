@@ -700,7 +700,7 @@ def draw(is_pause):  # Функция отрисовки кадров
 
 
 def play_game(lvl_name, players_number: int, is_new_game=False):
-    global LIVES, game_map, lvl_index, tick_time
+    global LIVES, CAN_DIG, game_map, destroyed_walls, lvl_index, tick_time
 
     sound = rd.choice(fon_game_music)
     play_sound(sound, -1, fade_ms=5000)
@@ -712,9 +712,12 @@ def play_game(lvl_name, players_number: int, is_new_game=False):
     pause = False
     event = None
 
+    destroyed_walls = {}
+
     if is_new_game:
         tick_time = timer()
         TIMERS.clear()
+        CAN_DIG = False
         LIVES = 5
         lvl_index = 0
 
