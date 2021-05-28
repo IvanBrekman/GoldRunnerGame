@@ -1,5 +1,6 @@
 import pygame
 
+# Все группы спрайтов
 all_sprites = pygame.sprite.Group()
 map_objects = pygame.sprite.Group()
 animations = pygame.sprite.Group()
@@ -12,3 +13,4 @@ shovels = pygame.sprite.Group()
 
 player = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
+#

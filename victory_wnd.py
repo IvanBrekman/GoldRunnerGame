@@ -5,9 +5,13 @@ import pygame_gui
 import sqlite3
 import datetime as dt
 
+
+# Начальные переменные для окна
 SIZE = WIDTH, HEIGHT = (800, 600)
 screen = pygame.display.set_mode(SIZE)
+#
 
+# Создание интерфейсных кнопок
 pygame.init()  # Инициализация движка pygame
 manager = pygame_gui.UIManager(SIZE)
 
@@ -18,9 +22,12 @@ player_name_tel.set_text_length_limit(10)
 player_name_tel.set_text("Player")
 
 clock = pygame.time.Clock()
+#
 
 
 def save_score(name, total_time, lives):
+    """ Функция сохраняет результат игры в базу данных """
+
     con = sqlite3.connect(f"{DATA_DIR}/database/{MY_DB}")
     cur = con.cursor()
 
@@ -33,7 +40,10 @@ def save_score(name, total_time, lives):
 
 
 def draw(lives, seconds):
-    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
+    """ Функция отрисовки основного view """
+
+    fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg", scale=None),
+                                 SIZE)
     screen.blit(fon, (0, 0))
 
     show_text(screen, "Итоговый счет", (WIDTH // 2, 100), 60, None, white, True)
@@ -44,6 +54,8 @@ def draw(lives, seconds):
 
 
 def show_victory_screen(lives, seconds):
+    """ Функция с основным жизненным циклом окна """
+
     global screen
     screen = pygame.display.set_mode(SIZE)
     play_sound(victory_music, -1)
@@ -54,12 +66,14 @@ def show_victory_screen(lives, seconds):
             if e.type == pygame.QUIT:
                 terminate()
 
+            # Обработка триггеров на нажатие интерфейсных кнопок
             if e.type == pygame.USEREVENT:
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == menu_btn:
                         save_score(player_name_tel.text, seconds, lives)
                         stop_sound(victory_music)
                         return
+            #
 
             manager.process_events(e)
 

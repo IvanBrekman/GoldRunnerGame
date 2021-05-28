@@ -6,14 +6,17 @@ import pygame_gui
 import sqlite3
 import datetime as dt
 
+# Начальные переменные для окна
 SIZE = WIDTH, HEIGHT = (800, 600)
 screen = pygame.display.set_mode(SIZE)
 
 pygame.init()  # Инициализация движка pygame
 manager = pygame_gui.UIManager(SIZE)
 
-fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg"), SIZE)
+fon = pygame.transform.scale(load_image(f"{DATA_DIR}/images/gameFon/menu_fon.jpg", scale=None), SIZE)
+#
 
+# Создание интерфейсных кнопок
 button = pygame_gui.elements.UIButton
 
 start_btn = button(pygame.Rect(WIDTH // 2 - 100, 200, 200, 50), "Начать", manager)
@@ -26,9 +29,12 @@ highscores_btn = button(pygame.Rect(WIDTH // 2 - 100, 350, 200, 50), "Доска
 exit_btn = button(pygame.Rect(WIDTH // 2 - 100, 425, 200, 50), "Выйти из игры", manager)
 back_btn = button(pygame.Rect(WIDTH // 2 - 100, 500, 200, 50), "Назад", manager)
 clock = pygame.time.Clock()
+#
 
 
 def get_highscores() -> iter:
+    """ Функция получает 5 лучших результатов из базы данных """
+
     con = sqlite3.connect(f"{DATA_DIR}/database/{MY_DB}")
     cur = con.cursor()
 
@@ -41,6 +47,8 @@ def get_highscores() -> iter:
 
 
 def hide():
+    """ Функция скрывает необходимые кнопки """
+
     start_btn.hide()
     description_btn.hide()
     highscores_btn.hide()
@@ -49,6 +57,8 @@ def hide():
 
 
 def draw_main_view():
+    """ Функция рисует основной view главного окна """
+
     start_btn.show()
     description_btn.show()
     highscores_btn.show()
@@ -63,6 +73,8 @@ def draw_main_view():
 
 
 def draw_description_view():
+    """ Функция рисует view описания игры """
+
     hide()
     screen.blit(fon, (0, 0))
 
@@ -78,6 +90,8 @@ def draw_description_view():
 
 
 def draw_highscores_view():
+    """ Функция рисует view лучших результатов """
+
     hide()
     screen.blit(fon, (0, 0))
 
@@ -94,6 +108,8 @@ def draw_highscores_view():
 
 
 def draw_select_game_mode_view():
+    """ Функция рисует view выбора режима игры """
+
     hide()
     one_player_btn.show()
     two_player_btn.show()
@@ -104,6 +120,8 @@ def draw_select_game_mode_view():
 
 
 def start_screen():
+    """ Запуск цикла игры для отображения главного окна """
+
     global screen
     draw = draw_main_view
 
@@ -113,6 +131,7 @@ def start_screen():
             if e.type == pygame.QUIT:
                 terminate()
 
+            # Обработка триггеров на нажатие интерфейсных кнопок
             if e.type == pygame.USEREVENT:
                 if e.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if e.ui_element == start_btn:
@@ -134,6 +153,7 @@ def start_screen():
                         draw = draw_main_view
 
             manager.process_events(e)
+            #
 
         draw()
 
